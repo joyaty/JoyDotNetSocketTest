@@ -1,45 +1,84 @@
 ﻿
 using Joy.Test.Client;
 
-Console.WriteLine("Hello, World!");
-
-List<GameSimpleClient> simpleClients = new List<GameSimpleClient>();
-
-while (true)
+namespace Joy.Test.Client
 {
-    string? inputValue = Console.ReadLine();
-    if (inputValue == null) { break; }
-    if (inputValue.Equals("link"))
+    public class Program
     {
-        GameSimpleClient client = new GameSimpleClient();
-        await client.LinkToServer();
-        simpleClients.Add(client);
-    }
-    else if (inputValue.StartsWith("close"))
-    {
-        string[] inputs = inputValue.Split(" ");
-        if (inputs.Length >= 2)
+        private static readonly List<GameSimpleClient> s_SimpleClients = new List<GameSimpleClient>();
+
+        public static void Main(string[] args)
         {
-            try
+            Console.WriteLine("Hello, Client!");
+            while (true)
             {
-                int closeIndex = int.Parse(inputs[1]);
-                if (closeIndex < simpleClients.Count)
+                string? inputValue = Console.ReadLine();
+                if (inputValue == null) { break; }
+                if (inputValue.Equals("link"))
                 {
-                    GameSimpleClient client = simpleClients[closeIndex];
-                    client?.Disconnect();
-                    simpleClients.RemoveAt(closeIndex);
+                    GameSimpleClient client = new GameSimpleClient(OnSocketConnected, OnSocketClose);
+                    client.LinkToServer();
+
+                }
+                else if (inputValue.StartsWith("close"))
+                {
+                    string[] inputs = inputValue.Split(" ");
+                    if (inputs.Length >= 2)
+                    {
+                        try
+                        {
+                            int closeIndex = int.Parse(inputs[1]);
+                            if (closeIndex < s_SimpleClients.Count)
+                            {
+                                GameSimpleClient client = s_SimpleClients[closeIndex];
+                                client?.Disconnect();
+                                s_SimpleClients.RemoveAt(closeIndex);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.ToString());
+                        }
+                    }
+                }
+                else if (inputValue.StartsWith("send"))
+                {
+                    string[] inputs = inputValue.Split(" ");
+                    if (inputs.Length >= 2)
+                    {
+                        try
+                        {
+                            int closeIndex = int.Parse(inputs[1]);
+                            if (closeIndex < s_SimpleClients.Count)
+                            {
+                                GameSimpleClient client = s_SimpleClients[closeIndex];
+                                client?.SendMessage();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.ToString());
+                        }
+                    }
+                }
+                else if (inputValue.Equals("quit"))
+                {
+                    break;
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
+        }
+
+        private static void OnSocketConnected(GameSimpleClient client)
+        {
+            if (client == null) { return; }
+            s_SimpleClients.Add(client);
+        }
+
+        private static void OnSocketClose(GameSimpleClient client)
+        {
+            if (client == null) { return; }
+            s_SimpleClients.Remove(client);
         }
     }
-    else if (inputValue.Equals("quit"))
-    {
-        break;
-    }
+
 }
-
-

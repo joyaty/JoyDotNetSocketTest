@@ -49,7 +49,11 @@ namespace Joy.Test.Server
 
 
         int m_totalBytesRead;           // counter of the total # bytes received by the server
-        int m_numConnectedSockets;      // the total number of clients connected to the server
+
+        /// <summary>
+        /// 当前的连接数
+        /// </summary>
+        int m_NumConnectedSockets;      // the total number of clients connected to the server
 
 
         // Create an uninitialized server instance.
@@ -61,7 +65,7 @@ namespace Joy.Test.Server
         public IOCPServer(int numConnections, int receiveBufferSize)
         {
             m_totalBytesRead = 0;
-            m_numConnectedSockets = 0;
+            m_NumConnectedSockets = 0;
             m_NumConnections = numConnections;
             m_BufferSize = receiveBufferSize;
             // 初始化缓冲区管理器，这里设计为每个连接的每个缓冲区都有独立可用的字节缓冲区
@@ -133,34 +137,35 @@ namespace Joy.Test.Server
             while (!willRaiseEvent)
             {
                 m_MaxNumberAcceptedClients.WaitOne();
-
-                // socket must be cleared since the context object is being reused
-                acceptEventArg.AcceptSocket = null;
-                willRaiseEvent = m_ListenSocket.AcceptAsync(acceptEventArg);
+                acceptEventArg.AcceptSocket = null;  // 重置以便重新使用
+                willRaiseEvent = m_ListenSocket.AcceptAsync(acceptEventArg); // 返回true表示等待异步连接，收到连接后触发SocketAsyncEventArgs.Completed回调
                 if (!willRaiseEvent)
-                {
+                {// 返回false表示连接操作同步完成，不会触发SocketAsyncEventArgs.Completed回调，故在此手动处理连接，并且在处理后循环以便等待下一连接
                     ProcessAccept(acceptEventArg);
                 }
             }
         }
 
-        // This method is the callback method associated with Socket.AcceptAsync
-        // operations and is invoked when an accept operation is complete
-        //
-        void AcceptEventArg_Completed(object sender, SocketAsyncEventArgs e)
+        /// <summary>
+        /// 接收连接请求回调函数
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void AcceptEventArg_Completed(object sender, SocketAsyncEventArgs e)
         {
+            Console.WriteLine($"3. ThreadId = {Thread.CurrentThread.ManagedThreadId}");
             ProcessAccept(e);
-
-            // Accept the next connection request
+            // 等待新的连接请求
             StartAccept(e);
+
         }
 
         private void ProcessAccept(SocketAsyncEventArgs e)
         {
-            Interlocked.Increment(ref m_numConnectedSockets);
+            if (e.AcceptSocket == null) { return; }
+            Interlocked.Increment(ref m_NumConnectedSockets);
             Console.WriteLine("Client connection accepted. There are {0} clients connected to the server",
-                m_numConnectedSockets);
-
+                m_NumConnectedSockets);
             // Get the socket for the accepted client connection and put it into the
             //ReadEventArg object user token
             SocketAsyncEventArgs readEventArgs = m_ReadWritePool.Pop();
@@ -177,7 +182,7 @@ namespace Joy.Test.Server
         // This method is called whenever a receive or send operation is completed on a socket
         //
         // <param name="e">SocketAsyncEventArg associated with the completed receive operation</param>
-        void IO_Completed(object sender, SocketAsyncEventArgs e)
+        private void IO_Completed(object sender, SocketAsyncEventArgs e)
         {
             // determine which type of operation just completed and call the associated handler
             switch (e.LastOperation)
@@ -199,6 +204,7 @@ namespace Joy.Test.Server
         //
         private void ProcessReceive(SocketAsyncEventArgs e)
         {
+            if (e.UserToken is not Socket socket) { return; }
             // check if the remote host closed the connection
             if (e.BytesTransferred > 0 && e.SocketError == SocketError.Success)
             {
@@ -206,14 +212,19 @@ namespace Joy.Test.Server
                 Interlocked.Add(ref m_totalBytesRead, e.BytesTransferred);
                 Console.WriteLine("The server has read a total of {0} bytes", m_totalBytesRead);
 
-                //echo the data received back to the client
-                e.SetBuffer(e.Offset, e.BytesTransferred);
-                Socket socket = (Socket)e.UserToken;
-                bool willRaiseEvent = socket.SendAsync(e);
+                bool willRaiseEvent = socket.ReceiveAsync(e);
                 if (!willRaiseEvent)
                 {
-                    ProcessSend(e);
+                    ProcessReceive(e);
                 }
+
+                // //echo the data received back to the client
+                // e.SetBuffer(e.Offset, e.BytesTransferred);
+                // bool willRaiseEvent1 = socket.SendAsync(e);
+                // if (!willRaiseEvent)
+                // {
+                //     ProcessSend(e);
+                // }
             }
             else
             {
@@ -247,7 +258,8 @@ namespace Joy.Test.Server
 
         private void CloseClientSocket(SocketAsyncEventArgs e)
         {
-            Socket socket = (Socket)e.UserToken;
+            // Socket? socket = e.UserToken is Socket ? e.UserToken as Socket : null;
+            if (e.UserToken is not Socket socket) { return; }
 
             // close the socket associated with the client
             try
@@ -259,13 +271,13 @@ namespace Joy.Test.Server
             socket.Close();
 
             // decrement the counter keeping track of the total number of clients connected to the server
-            Interlocked.Decrement(ref m_numConnectedSockets);
+            Interlocked.Decrement(ref m_NumConnectedSockets);
 
             // Free the SocketAsyncEventArg so they can be reused by another client
             m_ReadWritePool.Push(e);
 
             m_MaxNumberAcceptedClients.Release();
-            Console.WriteLine("A client has been disconnected from the server. There are {0} clients connected to the server", m_numConnectedSockets);
+            Console.WriteLine("A client has been disconnected from the server. There are {0} clients connected to the server", m_NumConnectedSockets);
         }
     }
 }

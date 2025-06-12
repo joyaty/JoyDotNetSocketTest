@@ -6,7 +6,7 @@ namespace Joy.Test.Server
     /// <summary>
     /// 简单实现的SocketAsyncEventArgs对象池类，用于优化Socket异步操作性能
     /// </summary>
-    class SocketAsyncEventArgsPool
+    public class SocketAsyncEventArgsPool
     {
         /// <summary>
         /// 空闲可复用的SocketAsyncEventArgs对象栈

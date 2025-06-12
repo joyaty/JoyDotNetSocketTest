@@ -1,7 +1,6 @@
 
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 
 namespace Joy.Test.Server
 {
@@ -10,8 +9,6 @@ namespace Joy.Test.Server
     /// </summary>
     public class GameSimpleServer
     {
-        
-
         /// <summary>
         /// 监听
         /// </summary>
@@ -32,10 +29,11 @@ namespace Joy.Test.Server
             m_Listener.Bind(listenInfo);
             m_Listener.Listen(1000);
             m_ServerIsRunning = true;
-            // m_Listener.BeginAccept(new AsyncCallback(ClientSocketAccept), m_Listener);
+            Console.WriteLine($"启动线程:{Thread.CurrentThread.ManagedThreadId}");
+            m_Listener.BeginAccept(new AsyncCallback(ClientSocketAccept), m_Listener);
             Console.WriteLine($"服务器启动监听:{listenInfo}");
             // m_Listener.Accept();
-            StartAccept();
+            // StartAccept();
         }
 
         private async void StartAccept()
@@ -73,21 +71,21 @@ namespace Joy.Test.Server
             }
         }
 
-        // /// <summary>
-        // /// 接收到客户端连接
-        // /// </summary>
-        // /// <param name="asyncResult"></param>
-        // private void ClientSocketAccept(IAsyncResult asyncResult)
-        // {
-        //     Socket? listener = asyncResult.AsyncState as Socket;
-        //     if (listener != null)
-        //     {
-        //         Socket client = listener.EndAccept(asyncResult);
-        //         Console.WriteLine($"收到远端连接: {client.RemoteEndPoint}");
-        //         // TODO 处理连接
-        //         // 接收下一条连接
-        //         listener.BeginAccept(new AsyncCallback(ClientSocketAccept), listener);
-        //     }
-        // }
+        /// <summary>
+        /// 接收到客户端连接
+        /// </summary>
+        /// <param name="asyncResult"></param>
+        private void ClientSocketAccept(IAsyncResult asyncResult)
+        {
+            Socket? listener = asyncResult.AsyncState as Socket;
+            if (listener != null)
+            {
+                Socket client = listener.EndAccept(asyncResult);
+                Console.WriteLine($"收到远端连接: {client.RemoteEndPoint}，ThreadId:{Thread.CurrentThread.ManagedThreadId}");
+                // TODO 处理连接
+                // 接收下一条连接
+                listener.BeginAccept(new AsyncCallback(ClientSocketAccept), listener);
+            }
+        }
     }
 }
