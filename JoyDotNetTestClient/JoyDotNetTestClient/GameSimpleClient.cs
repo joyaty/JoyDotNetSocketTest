@@ -2,13 +2,15 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Joy.Test.Client
 {
     public class GameSimpleClient
     {
         private static readonly string s_ServerIP = "192.168.17.65";
-        private static readonly int s_ServerPort = 9960;
+        private static readonly int s_ServerPort = 8089; // 9960
 
         private readonly Socket m_Socket;
 
@@ -35,6 +37,9 @@ namespace Joy.Test.Client
         private int m_SendIndex = 0;
 
         private Random m_RandomGen;
+
+        public const byte CheckCode1 = 0x5A;
+        public const byte CheckCode2 = 0xA5;
 
         public GameSimpleClient(OnSocketConnectedCallback onConnectSuccess, OnSocketCloseCallback onSocketCloseCallback)
         {
@@ -79,7 +84,7 @@ namespace Joy.Test.Client
             }
         }
 
-        public async Task SendMessage()
+        public async void SendMessage()
         {
             if (m_Socket == null || !m_Socket.Connected)
             {
@@ -92,6 +97,70 @@ namespace Joy.Test.Client
             byte[] data = BitConverter.GetBytes(randomValue);
             int sendBytes = await m_Socket.SendAsync(data);
             Console.WriteLine($"{m_Socket.LocalEndPoint}:发送的字节数:{sendBytes},数据{randomValue}");
+        }
+
+        public async void SendMessage(int cmdId)
+        {
+            if (m_Socket == null || !m_Socket.Connected)
+            {
+                Console.WriteLine("Socket未连接，无法发送消息");
+                return;
+            }
+
+            string message = GenerateMessage(cmdId);
+            int byteLength = System.Text.Encoding.UTF8.GetByteCount(message);
+            byte[] sendBytes = new byte[byteLength + 6];
+            sendBytes[0] = CheckCode1;
+            sendBytes[1] = CheckCode2;
+            sendBytes[2] = (byte)(byteLength);
+            sendBytes[3] = (byte)(byteLength >> 8);
+            sendBytes[4] = (byte)(byteLength >> 16);
+            sendBytes[5] = (byte)(byteLength >> 24);
+
+            int writeByteLength = System.Text.Encoding.UTF8.GetBytes(message, 0, message.Length, sendBytes, 6);
+            if (byteLength != writeByteLength)
+            {
+                Console.WriteLine($"数据写入丢失！消息包数据字节长度:{byteLength}, 消息写入字节长度:{writeByteLength}。");
+                return;
+            }
+            int sendLength = await m_Socket.SendAsync(sendBytes);
+            Console.WriteLine($"{m_Socket.LocalEndPoint}:发送的字节数:{sendLength},数据:{message}");
+        }
+
+        private string GenerateMessage(int cmdId)
+        {
+            NetBoxMessage msg = new NetBoxMessage();
+            msg.msg = "";
+            msg.code = 200;
+            if (cmdId == (int)NetCmd.CreateGame)
+            {
+                NetRcvCreateGame netRcvCreateGame = new NetRcvCreateGame()
+                {
+                    game_mode = 1,
+                    ballCount = -1,
+                    isZhuiFenMode = false,
+                };
+                msg.cmd = cmdId;
+                msg.data = JsonSerializer.Serialize(netRcvCreateGame);
+            }
+            else if (cmdId == (int)NetCmd.Shot)
+            {
+                NetRcvShot netRcvShot = new NetRcvShot()
+                {
+                    gameId = 1,
+                    round = 1,
+                    needPutBall = false,
+                    px = 0,
+                    py = 0,
+                    pz = 0,
+                    playerNextHitBall = 1,
+                    hitBallDetail = PhysicsShotData.GetShotData((float)m_RandomGen.NextDouble() * 0.3f + 0.7f),
+                };
+                msg.cmd = cmdId;
+                msg.data = JsonSerializer.Serialize(netRcvShot);
+            }
+            string message = JsonSerializer.Serialize(msg);
+            return message;
         }
     }
 }

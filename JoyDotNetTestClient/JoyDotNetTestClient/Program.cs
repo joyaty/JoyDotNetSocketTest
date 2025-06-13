@@ -44,15 +44,32 @@ namespace Joy.Test.Client
                 else if (inputValue.StartsWith("send"))
                 {
                     string[] inputs = inputValue.Split(" ");
-                    if (inputs.Length >= 2)
+                    if (inputs.Length == 2)
                     {
                         try
                         {
-                            int closeIndex = int.Parse(inputs[1]);
-                            if (closeIndex < s_SimpleClients.Count)
+                            int index = int.Parse(inputs[1]);
+                            if (index < s_SimpleClients.Count)
                             {
-                                GameSimpleClient client = s_SimpleClients[closeIndex];
+                                GameSimpleClient client = s_SimpleClients[index];
                                 client?.SendMessage();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.ToString());
+                        }
+                    }
+                    else if (inputs.Length == 3)
+                    {
+                        try
+                        {
+                            int index = int.Parse(inputs[1]);
+                            int cmdId = int.Parse(inputs[2]);
+                            if (index < s_SimpleClients.Count)
+                            {
+                                GameSimpleClient client = s_SimpleClients[index];
+                                client?.SendMessage(cmdId);
                             }
                         }
                         catch (Exception ex)
